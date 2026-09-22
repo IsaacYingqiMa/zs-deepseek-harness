@@ -1,0 +1,104 @@
+# Module State File — SDD Pipeline Persistence
+
+Drop one of these per module under development at:
+`HERMES_HOME/state/sdd/<module-slug>.yaml`
+
+`<module-slug>` is the module name with non-ASCII characters escaped or transliterated, e.g. `知识管理-RAG对话` → `knowledge-rag-chat`.
+
+---
+
+```yaml
+# Module under SDD pipeline supervision
+module: "知识管理-RAG对话"
+module_slug: "knowledge-rag-chat"
+project_root: "D:/InspurCode/zk-project"
+
+# === Stage state machine ===
+stages_completed: [brain, spec, test-gen, verify, apply, code-review, e2e-gen]
+current_stage: e2e-run
+stages_skipped: []           # e.g. [init] for projects that pre-existed
+stages_failed: []            # append here when a stage fails its validation
+
+# === Artifacts produced by prior stages ===
+stage_artifacts:
+  brain: "对话中 — see specs/.../BRAIN-knowledge-rag-chat.md (if persisted)"
+  spec:
+    - "specs/requirement/知识管理-RAG对话/REQ-知识管理-RAG对话.md"
+    - "specs/design/知识管理-RAG对话/DES-知识管理-RAG对话-前端.md"
+    - "specs/design/知识管理-RAG对话/DES-知识管理-RAG对话-后端.md"
+    - "specs/task/知识管理-RAG对话/TASK-知识管理-RAG对话.md"
+  test_gen: "specs/checklist/知识管理-RAG对话/CHK-知识管理-RAG对话.md"
+  verify: "specs/requirement/知识管理-RAG对话/verify-report-2026-06-17.md"
+  apply: "git commits abc123..def456 on branch feature/rag-vector-update"
+  code_review: "code-review report at specs/.../code-review-2026-06-17.md"
+
+# === Human checkpoint state ===
+# The supervisor may not advance past a pending checkpoint.
+human_checkpoints_passed: [post_brain, post_spec]
+human_checkpoints_pending: []
+# Possible values for passed/pending entries:
+#   post_brain, post_spec, mid_apply_scope_check, change_major_rollback, final_acceptance
+
+# === Dispatch bookkeeping ===
+last_run: 2026-06-17T15:43:00Z
+last_dispatch:
+  stage: e2e-run
+  dispatch_id: "d_2026-06-17_e2e-run_001"
+  claude_session_id: null   # may be null for one-shot `-p` mode
+  exit_status: completed
+  budget_spent_usd: 0.42
+  turns_used: 7
+  report_back: "<inlined JSON from Claude Code's REPORT_BACK_FORMAT>"
+last_failure: null
+# When last_failure is non-null, populate:
+#   last_failure:
+#     stage: <name>
+#     attempt: <1..3>
+#     reason: <short string>
+#     feedback_sent: <the feedback that was re-dispatched with>
+#     timestamp: <ISO>
+
+# === What the supervisor should do NEXT ===
+next_action: "Dispatch e2e-run for module 知识管理-RAG对话 with prior artifacts and HARD-GATE for automation=auto check items"
+next_action_blocked_reason: null  # populated when next_action is gated on user input
+
+# === Module-level memory hooks ===
+# Anything the supervisor has learned about this module that should survive
+# across sessions, but that does NOT belong in the project's specs/ tree.
+notes:
+  - "e2e-run on this module needs --browser=chromium (headless), firefox times out"
+  - "spec/ 后端 requires 02-data-model.md 'SQL 同步原则' — read it before apply"
+```
+
+---
+
+## Atomic write contract
+
+Supervisor updates this file with `write_file` (full replace) — never append. The contract is:
+
+1. Read current state
+2. Compute the new state (do not mutate in place)
+3. Write the full new state in one operation
+4. Only update the file AFTER the stage result has been validated
+
+If the dispatch process crashes mid-flight, the file still reflects "stage X in progress, last good state was Y" — next session resumes safely from the last completed stage.
+
+## What goes here vs. memory vs. project specs/
+
+| Belongs in state file | Belongs in memory | Belongs in specs/ |
+|-----------------------|-------------------|-------------------|
+| Current stage of THIS module | User preferences (style, language) | The actual REQ/DES/TASK/CHK docs |
+| Last dispatch attempt + exit status | Architecture decisions the user has confirmed | Stage output artifacts |
+| Pending human checkpoints | SDD-skill-system-wide rules | Module history / change log |
+| Per-module failure patterns (e.g. "firefox times out on this module") | Cross-module patterns | |
+
+The boundary: **state file = pipeline state, memory = the supervisor's world model, specs/ = the project's truth.**
+
+## When to delete a state file
+
+Delete the YAML when:
+
+- `zsspec-done` (or equivalent final stage) reports REQ status → 已完成, AND
+- The user has given final acceptance (human_checkpoints_passed contains "final_acceptance")
+
+Don't delete on partial completion — the file is the resume mechanism. If the user pauses mid-pipeline, the state file is what lets them come back days later and continue.

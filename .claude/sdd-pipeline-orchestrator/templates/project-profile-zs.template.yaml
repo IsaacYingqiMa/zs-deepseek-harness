@@ -1,0 +1,70 @@
+# zs-dev-orchestrator 项目画像模板
+# 位置: <项目根>/.meta-dev/project-profile.yaml
+# 由 Hermes 派 CC 扫描项目后自动生成,用户可手工修订
+project:
+  name: <项目名>
+  root: <绝对路径>
+  language: <python|node|java|go|rust|...>
+  framework: <agno|django|spring|express|...>
+  version: <框架版本,如 Django 5.0>
+  entry_point: <启动入口,如 server.py / main.go>
+  description: <项目一句话描述>
+
+spec_system:
+  type: <zsspec|markdown|custom|none>
+  spec_root: <spec 目录路径,如 specs/ 或 docs/spec/>
+  naming_convention: <REQ-XXX / spec-XXX / 无规范>
+  has_template: <bool>
+  template_path: <模板路径,如 .claude/skills/zsspec-standard/>
+
+hard_constraints_doc:
+  path: <CLAUDE.md / ARCHITECTURE.md / 任意规约文档>
+  summary: <一句话总结这份文档的核心约束>
+
+architecture_doc:
+  path: <架构文档路径>
+  has_nfr: <bool>
+
+business_objects:
+  agents_dir: <agents/ 路径,如适用>
+  workflows_dir: <workflow/ 路径,如适用>
+  teams_dir: <teams/ 路径,如适用>
+  routes_dir: <routes/ 路径,如适用>
+  services_dir: <services/ 路径,如适用>
+
+components:
+  knowledge: <components/knowledge.py 路径或 null>
+  memory: <components/memory.py 路径或 null>
+  mcp: <components/mcp.py 路径或 null>
+  skill: <components/skill.py 路径或 null>
+
+test_system:
+  test_root: <tests/ 路径>
+  unit_runner: <pytest|jest|go test|...>
+  e2e_runner: <playwright|cypress|selenium|none>
+  coverage_tool: <coverage.py|jest --coverage|...>
+  min_coverage_percent: <如 60>
+
+config:
+  config_file: <config.yaml|.env|...>
+  llm_provider: <openai|aliyun|...|unknown>
+  llm_model_default: <默认模型名>
+  env_file: <.env 路径>
+
+git:
+  is_repo: <bool>
+  current_branch: <main|develop|...>
+  auto_commit: <bool>
+  branch_prefix: <zs-dev/ | zsspec/ | ...>
+
+notifications:
+  channel: <feishu:<chat_id>|wechat|log-only>
+  enabled: <bool>
+  on_stage_change: <bool>
+  on_module_done: <bool>
+  on_user_intervention: <bool>
+
+meta:
+  profile_generated_at: <ISO 时间>
+  profile_version: 1
+  generated_by: <扫描脚本的 commit 或 skill 版本>

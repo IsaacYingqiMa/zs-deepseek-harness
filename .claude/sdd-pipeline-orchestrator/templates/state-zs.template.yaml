@@ -1,0 +1,31 @@
+# zs-dev-orchestrator 状态机文件
+# 位置: <项目根>/.meta-dev/state.yaml
+# 由 Hermes 写,Claude Code 不写
+project: <项目名>
+schema_version: 1
+updated_at: <ISO 时间>
+current_task: null
+current_module: null
+queue: []
+
+# 当前任务的路由图(由 Layer 1 意图识别产出)
+active_route_plan: null
+
+# 任务历史(可选,审计用)
+task_history: []
+
+# 模块/任务状态
+modules: {}
+
+settings:
+  notify_channel: <feishu:<chat_id>|wechat|log-only>
+  max_retry_per_stage: 3
+  max_retry_per_module: 5
+  fail_fast_on_architecture_violation: true
+  notify_on_stage_change: true
+  notify_on_module_done: true
+  notify_on_user_intervention: true
+  git:
+    auto_commit: true
+    branch_prefix: zs-dev/
+    rewind_on_violation: true
