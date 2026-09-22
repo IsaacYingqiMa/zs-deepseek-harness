@@ -1,0 +1,90 @@
+# zs-dev-orchestrator 路由图模板
+# 位置: <项目根>/.meta-dev/route-plan.yaml
+# 由 Layer 1 意图识别 Agent 产出
+# 用户可手工修订(你可以改 stage 列表、加 stage、删 stage)
+
+task_id: <uuid>
+task_type: <T1 | T2 | T3 | T4 | T5 | T6>
+task_name: <任务名,如 "做政策事项拆解模块">
+user_input: |
+  <用户原始需求,原文>
+
+project_context:
+  project_profile_path: .meta-dev/project-profile.yaml
+  current_state_path: .meta-dev/state.yaml
+
+recognized_at: <ISO 时间>
+recognized_by: layer1-intent-recognition-agent
+
+# 路由阶段(按顺序执行)
+stages:
+  - name: brain
+    required: true
+    reason: <为什么这个 stage 必跑>
+    estimated_minutes: 10
+  - name: spec
+    required: true
+    reason: <理由>
+    estimated_minutes: 20
+  - name: test-gen
+    required: true
+    reason: <理由>
+    estimated_minutes: 10
+  - name: verify
+    required: true
+    reason: <理由>
+    estimated_minutes: 5
+  - name: apply
+    required: true
+    reason: <理由>
+    estimated_minutes: 60
+  - name: code-review
+    required: true
+    reason: <理由>
+    estimated_minutes: 10
+  - name: e2e-gen
+    required: false
+    reason: <为什么非必跑>
+    estimated_minutes: 15
+  - name: e2e-run
+    required: false
+    reason: <理由>
+    estimated_minutes: 10
+  - name: done
+    required: true
+    reason: <必跑>
+    estimated_minutes: 5
+
+# 任务参数
+parameters:
+  module_name: <模块名,如 政策事项拆解>
+  priority: <P0|P1|P2>
+  input_data:
+    - <用户提供的输入数据路径或描述>
+  expected_outputs:
+    - <期望的产物>
+  hard_constraints:
+    - <额外的硬约束,如 "使用阿里 LLM">
+
+# 预计总耗时
+estimated_total_minutes: 90
+
+# 风险评估
+risks:
+  - <识别到的风险>
+
+# 任务开始前需要问用户的问题(如没有就空列表)
+clarifications_needed: []
+
+# 决策策略
+decision_strategy:
+  rewind_on_failure: true
+  max_retry_per_stage: 3
+  max_retry_per_module: 5
+  escalate_to_user_on:
+    - architecture_violation_ambiguous
+    - 3_consecutive_stage_failures
+    - 2_module_regressions_to_brain
+    - business_requirement_unresolved_3_rounds
+    - system_level_dependency_change
+    - module_done
