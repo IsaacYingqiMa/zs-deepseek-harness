@@ -1,0 +1,3 @@
+name: AI 公司(完整组织)
+description: 董事长入口 preset。fork 出总经理→CTO→PM→设计/研发/测试完整层级,checklist 驱动讨论,角色边界用 fork 工具的 persona + toolFilter 强制。选这个 preset 后输入业务事件,整个公司自动组建并运转。
+order: 100

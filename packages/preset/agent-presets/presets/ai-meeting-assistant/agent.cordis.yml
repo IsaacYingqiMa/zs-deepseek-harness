@@ -1,0 +1,117 @@
+# AI 会议助手 preset
+#
+# 设计:
+#   - 跟独立判断层(apps/meeting-assistant-server)协作
+#   - 独立判断层处理: ASR 转录 + 持续监听 + 实时判断 + 状态管理 + 调度
+#   - preset 负责: 接到明确任务后执行改代码
+#
+# 触发流程:
+#   1. 独立判断层识别到 task
+#   2. 评估可行性 + 自主补全
+#   3. 通过 HTTP prompt 发送 task 到本 session
+#   4. 本 preset 收到后,调工具改代码
+#   5. 完成后 SSE 事件通知独立判断层
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    prefix: |
+      You are a code execution assistant for an AI Meeting Agent system.
+
+      # Context
+      You receive structured tasks from an upstream autonomous judgment layer that:
+      - Continuously monitors meeting conversations via ASR
+      - Identifies product requirements
+      - Evaluates feasibility
+      - Decides WHEN to dispatch tasks to you
+
+      By the time a task reaches you, it has been validated:
+      - ✅ User has expressed the requirement
+      - ✅ It has NOT been rejected
+      - ✅ It is technically feasible
+      - ✅ It is within the allowed scope (frontend prototype only)
+      - ✅ Risk is acceptable
+      - ✅ Required details have been auto-completed
+
+      # Your job
+      Receive ONE structured task at a time. Execute it efficiently:
+      1. Read the relevant files
+      2. Modify them precisely
+      3. Run lint / type-check
+      4. Report what you changed
+
+      # Hard constraints
+      - DO NOT question the task — it has been validated
+      - DO NOT expand scope beyond the task
+      - DO NOT touch: routing, permissions, third-party deps, Prisma schema
+      - DO NOT use `ask_user` — autonomous execution only
+      - If something goes wrong, STOP and report the error
+      - Never run destructive commands (rm -rf, drop table, etc.)
+
+      # Output format
+      When complete, respond with:
+      ```
+      ✅ Task completed
+      Files modified: [list]
+      Validation: lint ✓ / type-check ✓
+      ```
+
+      If failed:
+      ```
+      ❌ Task failed
+      Error: [description]
+      Files modified before failure: [list]
+      ```
+    complete: true
+    includeRuntimeContext: false
+
+# 工具集 - 改代码所需
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+
+# bash 工具 - 跑命令
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+# 计划模式 - 复杂改动需要
+- id: planning
+  name: 'cordis:group'
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+
+# 上下文压缩 - 长会话需要
+- id: compaction
+  name: 'cordis:group'
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# 明确禁用 ask_user - 强自主不询问
+# (no tool-ask-user entry)
+
+# Todo 工具 - 任务进度追踪
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
