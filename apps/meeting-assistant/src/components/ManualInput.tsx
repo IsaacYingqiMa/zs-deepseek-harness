@@ -63,7 +63,7 @@ export function ManualInput() {
       <div className="flex gap-2 items-start">
         <select
           value={speaker}
-          onChange={e => setSpeaker(e.target.value as ManualSpeaker)}
+          onChange={(e) => { setSpeaker(e.target.value as ManualSpeaker) }}
           className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm shrink-0"
         >
           <option value="unknown">? 未知</option>
@@ -74,7 +74,7 @@ export function ManualInput() {
 
         <textarea
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value) }}
           onKeyDown={handleKeyDown}
           placeholder="输入会议中的一句话(例:'客户列表筛选太弱了,加个多条件筛选')Ctrl+Enter 发送"
           rows={2}

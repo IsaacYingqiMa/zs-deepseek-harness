@@ -4,6 +4,11 @@
  * 物理隔离录音流,文本输入走 ChunkDistributor → JudgmentEngine 的同一路径。
  * 用于:不依赖麦克风/ASR,直接打字测试规划能力。
  */
+/* eslint-disable typescript/no-unsafe-assignment,
+   typescript/no-unsafe-member-access,
+   typescript/no-unsafe-argument,
+   typescript/no-unnecessary-type-assertion,
+   typescript/use-unknown-in-catch-callback-variable */
 import type { WebSocket } from 'ws'
 import { logger } from '../logger.js'
 import type { ChunkDistributor } from '../asr-relay/chunk-distributor.js'

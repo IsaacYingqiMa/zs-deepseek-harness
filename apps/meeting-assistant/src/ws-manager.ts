@@ -113,7 +113,7 @@ export class WsManager {
 
     ws.onmessage = (e) => {
       try {
-        const data = JSON.parse(e.data)
+        const data: unknown = JSON.parse(e.data as string)
         for (const l of this.eventListeners) {
           try { l(data) } catch (err) { console.error('listener error', err) }
         }

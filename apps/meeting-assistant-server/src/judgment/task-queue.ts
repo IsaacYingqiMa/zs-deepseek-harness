@@ -67,7 +67,13 @@ export class TaskQueue {
       relationTo: { taskId: string | null; type: 'supersedes' | 'extends' | 'conflicts' | 'rejects' | 'approval' | null } | null
       reasoning: string
     },
-  ): { task: Task; isNew: boolean; handledAsReject?: boolean } | null {
+  ): {
+    task: Task
+    isNew: boolean
+    handledAsReject?: boolean
+    /** 被 supersede 关系取代的旧 task 信息(给 stats 埋点用) */
+    supersededOld?: { id: string; prevStatus: TaskStatus }
+  } | null {
     // 0. 特殊意图:approval / rejection / defer — 不创建新 task,只更新上文
     if (llmIntent.intent === 'approval') {
       return this.handleApproval(chunk, llmIntent)
@@ -90,7 +96,7 @@ export class TaskQueue {
     }
     // 2. 校验 intent 必须有效
     const validIntents: TaskIntent[] = ['add-feature', 'modify-feature', 'delete-feature', 'fix-bug', 'data-change']
-    if (!validIntents.includes(llmIntent.intent as TaskIntent)) {
+    if (!validIntents.includes(llmIntent.intent)) {
       logger.info({ intent: llmIntent.intent }, 'task rejected: invalid intent')
       return null
     }
@@ -116,7 +122,7 @@ export class TaskQueue {
     }
 
     // 3.5 语义去重:同 intent + 同 target 对象(如 "header颜色" vs "头部颜色") → 合并
-    const similar = this.findSemanticallySimilar(llmIntent.intent as string, llmIntent.target)
+    const similar = this.findSemanticallySimilar(llmIntent.intent, llmIntent.target)
     if (similar && llmIntent.relationTo?.type !== 'supersedes') {
       similar.source.mentionCount++
       similar.source.lastSeenAt = chunk.timestamp
@@ -136,7 +142,7 @@ export class TaskQueue {
     }
 
     // 4. 创建新 Task(不查重,不合并)
-    const task = this.createTask(chunk, llmIntent.interpreted, llmIntent.intent as TaskIntent, [])
+    const task = this.createTask(chunk, llmIntent.interpreted, llmIntent.intent, [])
     task.source.currentChunkId = chunk.id
     task.llm = {
       target: llmIntent.target,
@@ -150,6 +156,7 @@ export class TaskQueue {
       const related = this.tasks.get(rel.taskId)
       if (related) {
         const now = Date.now()
+        const relatedPrevStatus = related.status
         switch (rel.type) {
           case 'supersedes':
             related.relations = { ...related.relations, supersededBy: task.id }
@@ -161,7 +168,12 @@ export class TaskQueue {
             })
             this.tasks.set(related.id, related)
             logger.info({ oldTask: related.id, newTask: task.id }, 'task superseded')
-            break
+            this.tasks.set(task.id, task)
+            return {
+              task,
+              isNew: true,
+              supersededOld: { id: related.id, prevStatus: relatedPrevStatus },
+            }
           case 'extends':
             task.relations = { ...task.relations, extends: related.id }
             related.timeline.push({
@@ -189,6 +201,10 @@ export class TaskQueue {
             this.tasks.set(related.id, related)
             logger.warn({ newTask: task.id, conflictsWith: related.id }, 'task conflicts')
             break
+          case 'approval':
+            // relationTo=approval 通常被前面的 handleApproval 处理,这里留兜底
+            logger.debug({ newTask: task.id, approved: related.id }, 'task approval (handled earlier)')
+            break
         }
       }
     }
@@ -197,8 +213,8 @@ export class TaskQueue {
     logger.info({
       taskId: task.id,
       intent: task.requirement.intent,
-      target: task.llm?.target,
-      confidence: task.llm?.confidence,
+      target: task.llm.target,
+      confidence: task.llm.confidence,
     }, 'task created from LLM')
 
     return { task, isNew: true }
@@ -346,7 +362,12 @@ export class TaskQueue {
       relationTo: { taskId: string | null; type: string | null } | null
       reasoning: string
     },
-  ): { task: Task; isNew: boolean; handledAsReject?: boolean } | null {
+  ): {
+    task: Task
+    isNew: boolean
+    handledAsReject?: boolean
+    supersededOld?: { id: string; prevStatus: TaskStatus }
+  } | null {
     const rel = llmIntent.relationTo
     const targetTaskId = rel?.taskId
 
@@ -394,7 +415,12 @@ export class TaskQueue {
       relationTo: { taskId: string | null; type: string | null } | null
       reasoning: string
     },
-  ): { task: Task; isNew: boolean; handledAsReject?: boolean } | null {
+  ): {
+    task: Task
+    isNew: boolean
+    handledAsReject?: boolean
+    supersededOld?: { id: string; prevStatus: TaskStatus }
+  } | null {
     const rel = llmIntent.relationTo
     const targetTaskId = rel?.taskId
 
@@ -427,7 +453,12 @@ export class TaskQueue {
       relationTo: { taskId: string | null; type: string | null } | null
       reasoning: string
     },
-  ): { task: Task; isNew: boolean; handledAsReject?: boolean } | null {
+  ): {
+    task: Task
+    isNew: boolean
+    handledAsReject?: boolean
+    supersededOld?: { id: string; prevStatus: TaskStatus }
+  } | null {
     const rel = llmIntent.relationTo
     const targetTaskId = rel?.taskId
 
@@ -448,7 +479,7 @@ export class TaskQueue {
 
   /** 获取所有 task(转成 Summary) */
   getAllSummaries(): TaskSummary[] {
-    return Array.from(this.tasks.values()).map(this.toSummary)
+    return Array.from(this.tasks.values()).map(t => this.toSummary(t))
   }
 
   /** 获取活跃 task */

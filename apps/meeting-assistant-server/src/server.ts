@@ -98,9 +98,9 @@ async function main() {
 
   // REST
   app.get('/api/projects', projectsApi.list)
-  app.post('/api/projects/select', projectsApi.select)
+  app.post('/api/projects/select', (req, res) => { void projectsApi.select(req, res) })
   app.get('/api/projects/current', projectsApi.current)
-  app.post('/api/projects/stop', projectsApi.stop)
+  app.post('/api/projects/stop', (req, res) => { void projectsApi.stop(req, res) })
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
@@ -118,13 +118,13 @@ async function main() {
 
     if (url.startsWith('/ws/events')) {
       // 事件流
-      handleWsUpgrade(server, socket, head, req, ws => eventsWs.handle(ws))
+      handleWsUpgrade(server, socket, head, req, (ws) => { eventsWs.handle(ws) })
     } else if (url.startsWith('/ws/audio')) {
       // 音频流
-      handleWsUpgrade(server, socket, head, req, ws => audioWs.handle(ws))
+      handleWsUpgrade(server, socket, head, req, (ws) => { audioWs.handle(ws) })
     } else if (url.startsWith('/ws/manual-input')) {
       // 手动输入(隔离于录音)
-      handleWsUpgrade(server, socket, head, req, ws => manualInputWs.handle(ws))
+      handleWsUpgrade(server, socket, head, req, (ws) => { manualInputWs.handle(ws) })
     } else {
       socket.destroy()
     }
@@ -144,9 +144,9 @@ async function main() {
   })
 
   // ============ 优雅退出 ============
-  process.on('SIGINT', async () => {
+  process.on('SIGINT', () => {
     logger.info('Shutting down...')
-    await devLauncher.stop()
+    void devLauncher.stop()
     funasr.close()
     server.close()
     process.exit(0)
@@ -166,15 +166,15 @@ function handleWsUpgrade(
   handler: (ws: WebSocket) => void | Promise<void>,
 ) {
   // 简化版:用 ws 模块升级
-  import('ws').then(({ WebSocketServer }) => {
+  void import('ws').then(({ WebSocketServer }) => {
     const wss = new WebSocketServer({ noServer: true })
     wss.handleUpgrade(req, socket, head, (ws) => {
-      handler(ws)
+      void handler(ws)
     })
   })
 }
 
-main().catch((err) => {
-  logger.error({ err }, 'Fatal error')
+main().catch((err: unknown) => {
+  logger.error({ err: err as Error }, 'Fatal error')
   process.exit(1)
 })

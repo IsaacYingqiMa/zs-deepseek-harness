@@ -3,6 +3,8 @@
  *
  * 不依赖 dsh,直接调用 MiniMax CN(Anthropic 兼容)API + tool use。
  *
+ * LLM streaming responses are loosely-typed JSON; we narrow per delta/event.
+ *
  * 流程:
  *   1. 接收任务(从 Scheduler)
  *   2. 构建 system prompt(AI 是代码执行者,不是判断者)
@@ -328,7 +330,7 @@ export class CodingAgent extends EventEmitter {
         return null
       }
 
-      return await response.json()
+      return await response.json() as LlmResponse
     } catch (err) {
       logger.error({ err }, 'LLM call exception')
       return null
@@ -416,7 +418,7 @@ export class CodingAgent extends EventEmitter {
       const content = await fs.readFile(full, 'utf-8')
       // 文件太长的截断
       if (content.length > 30000) {
-        return content.slice(0, 30000) + '\n\n... (文件截断,共 ' + content.length + ' 字符)'
+        return content.slice(0, 30000) + '\n\n... (文件截断,共 ' + String(content.length) + ' 字符)'
       }
       return content
     } catch (err) {

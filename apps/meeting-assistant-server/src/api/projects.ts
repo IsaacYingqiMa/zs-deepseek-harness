@@ -4,7 +4,7 @@
 import type { Request, Response } from 'express'
 import { resolve as pathResolve } from 'path'
 import { fileURLToPath } from 'url'
-import type { ProjectScanner } from '../project-host/project-scanner.js'
+import { ProjectScanner, detectProjectType } from '../project-host/project-scanner.js'
 import type { CodeMapGenerator } from '../project-host/code-map-generator.js'
 import type { DevServerLauncher } from '../project-host/dev-server-launcher.js'
 import { CodingAgent } from '../coding-agent/coding-agent.js'
@@ -41,11 +41,12 @@ export class ProjectsApi {
 
   /**
    * 选择项目:
-   *   1. 启动 dev server
-   *   2. 生成 Code Map
-   *   3. 创建 CodingAgent(自研,fallback 用)
-   *   4. 创建 DshHeadlessRunner(主路径)
-   *   5. 都绑定到 judgment engine
+   *   1. 探测项目类型(pure-html / framework)
+   *   2. 启动 dev server(按 type 分流)
+   *   3. 生成 Code Map
+   *   4. 创建 CodingAgent(自研,fallback 用)
+   *   5. 创建 DshHeadlessRunner(主路径,按 type 给不同 timeout)
+   *   6. 都绑定到 judgment engine
    */
   select = async (req: Request, res: Response): Promise<void> => {
     const { path: projectPath, framework } = req.body as { path: string; framework: string }
@@ -56,18 +57,22 @@ export class ProjectsApi {
     }
 
     try {
-      // 1. 启动 dev server
-      const dev = await this.devLauncher.start(projectPath, framework)
+      // ★ 1. 探测项目类型
+      const projectType = detectProjectType(projectPath)
+      logger.info({ projectPath, projectType }, 'Project type detected')
 
-      // 2. 生成 code map
+      // 2. 启动 dev server(按 type 分流:framework → pnpm dev;pure-html → node http)
+      const dev = await this.devLauncher.start(projectPath, framework, projectType)
+
+      // 3. 生成 code map(纯 HTML 也生成,虽然用不到但保持一致)
       const codeMap = this.codeMapGen.generate(projectPath, framework)
 
-      // 3. 创建 CodingAgent + DshHeadlessRunner
+      // 4. 创建 CodingAgent + DshHeadlessRunner
       const engine = this.getEngine()
       if (engine) {
         const llmConfig = engine.getLlmConfig()
 
-        // 3a. CodingAgent(自研,fallback)
+        // 4a. CodingAgent(自研,fallback)
         const codingAgent = new CodingAgent({
           apiKey: llmConfig.apiKey,
           baseUrl: llmConfig.baseUrl,
@@ -75,19 +80,22 @@ export class ProjectsApi {
           projectPath,
         })
 
-        // 3b. DshHeadlessRunner(主路径,用 dsh 完整框架)
+        // 4b. DshHeadlessRunner(主路径,按 type 给不同 timeout + thinkingLevel)
         const dshRunner = new DshHeadlessRunner({
-          dshBin: DSH_BIN,  // 显式传绝对路径(避免 Windows path.dirname 坑)
-          timeoutMs: 300_000,
+          dshBin: DSH_BIN,
+          projectType,
         })
 
-        // 4. 绑定:engine 内部调度 dshRunner,失败 fallback codingAgent
+        // 4c. 同步 judgment engine 的项目类型(影响 LLM 可行性评估的 prompt)
+        engine.setProjectType(projectType)
+
+        // 5. 绑定:engine 内部调度 dshRunner,失败 fallback codingAgent
         engine.bindCodingAgent(codingAgent, dshRunner)
 
-        // 5. 告诉 scheduler 项目根目录(dsh 需要)
+        // 6. 告诉 scheduler 项目根目录(dsh 需要)
         engine.bindProjectPath(projectPath)
 
-        logger.info({ projectPath }, 'CodingAgent + DshHeadlessRunner bound')
+        logger.info({ projectPath, projectType }, 'CodingAgent + DshHeadlessRunner bound')
       } else {
         logger.warn('Engine not available, agents not bound')
       }
@@ -97,6 +105,7 @@ export class ProjectsApi {
         project: {
           path: projectPath,
           framework,
+          type: projectType,
           previewUrl: dev.url,
           port: dev.port,
         },

@@ -3,10 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 会议助手 - 自主改造演示</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>隆中定策 · 草庐一声雷,千里定乾坤</title>
   </head>
   <body class="bg-slate-950 text-slate-100">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <style>
+      /* 智能体卡片:黄色脉冲 */
+      @keyframes pulse-yellow {
+        0%, 100% { box-shadow: 0 0 12px rgba(234, 179, 8, 0.4); }
+        50% { box-shadow: 0 0 24px rgba(234, 179, 8, 0.9); }
+      }
+      .animate-pulse-yellow { animation: pulse-yellow 1.4s ease-in-out infinite; }
+
+      /* 完成时绿色闪光:2s 内亮度渐变 + 缩小,然后稳态 */
+      @keyframes success-flash {
+        0%   { box-shadow: 0 0 0px rgba(34, 197, 94, 0); transform: scale(1); }
+        15%  { box-shadow: 0 0 32px rgba(34, 197, 94, 1.0); transform: scale(1.04); }
+        40%  { box-shadow: 0 0 20px rgba(34, 197, 94, 0.8); transform: scale(1); }
+        100% { box-shadow: 0 0 14px rgba(34, 197, 94, 0.55); transform: scale(1); }
+      }
+      .animate-success-flash { animation: success-flash 2s ease-out forwards; }
+    </style>
   </body>
 </html>

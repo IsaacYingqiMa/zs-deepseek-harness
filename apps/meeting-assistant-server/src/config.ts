@@ -49,7 +49,7 @@ export function loadConfig(): AppConfig {
     funasr: {
       url: process.env.FUNASR_URL || 'ws://localhost:10095',
     },
-    projectScanDirs: JSON.parse(process.env.PROJECT_SCAN_DIRS || '["D:\\\\projects","D:\\\\workspace"]'),
+    projectScanDirs: JSON.parse(process.env.PROJECT_SCAN_DIRS || '["D:\\\\projects","D:\\\\workspace"]') as string[],
     llm: {
       apiKey: process.env.MINIMAX_CN_API_KEY || process.env.ANTHROPIC_API_KEY || '',
       model: process.env.LLM_MODEL || 'MiniMax-M3',

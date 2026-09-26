@@ -13,7 +13,7 @@ const LEVELS = {
 
 type Level = keyof typeof LEVELS
 
-const currentLevel: Level = (process.env.LOG_LEVEL as Level) || 'info'
+const currentLevel: Level = (process.env.LOG_LEVEL ?? 'info') as Level
 
 function shouldLog(level: Level): boolean {
   return LEVELS[level] >= LEVELS[currentLevel]
@@ -32,7 +32,7 @@ function format(level: Level, args: unknown[]): unknown[] {
     return [`${prefix} ${args[1]}`, args[0], ...args.slice(2)]
   }
   // 只有对象
-  return [`${prefix}`, args[0], ...args.slice(1)]
+  return [prefix, args[0], ...args.slice(1)]
 }
 
 export const logger = {

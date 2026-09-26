@@ -11,11 +11,34 @@ import { ChevronDown, ChevronRight, Brain, Wrench, CheckCircle2, AlertCircle, Lo
 import type { CodingStep } from '../store'
 
 const TOOL_ICONS: Record<string, string> = {
+  // CodingAgent(自研)
   read_file: '📖',
   edit_file: '✏️',
   write_file: '📝',
   bash: '🖥️',
   list_files: '📂',
+  // dsh headless(实际用到的工具)
+  pwsh: '🖥️',
+  str_replace_based_edit_tool: '✏️',
+  str_replace: '✏️',
+  multi_edit: '✏️',
+  create_file: '📝',
+  fs_write: '📝',
+}
+
+/** 工具分类(颜色) */
+const TOOL_KIND: Record<string, 'read' | 'edit' | 'write' | 'shell'> = {
+  read_file: 'read',
+  list_files: 'read',
+  edit_file: 'edit',
+  str_replace_based_edit_tool: 'edit',
+  str_replace: 'edit',
+  multi_edit: 'edit',
+  write_file: 'write',
+  create_file: 'write',
+  fs_write: 'write',
+  bash: 'shell',
+  pwsh: 'shell',
 }
 
 export function ExecutionDetail({ steps }: { steps: CodingStep[] }) {
@@ -46,7 +69,7 @@ export function ExecutionDetail({ steps }: { steps: CodingStep[] }) {
   return (
     <div className="mt-2 border-t border-slate-800 pt-2">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => { setExpanded(!expanded) }}
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200"
       >
         {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -77,6 +100,13 @@ export function ExecutionDetail({ steps }: { steps: CodingStep[] }) {
             if (!call) return null
             const toolIcon = TOOL_ICONS[call.toolName || ''] || '🔧'
             const toolName = call.toolName || 'unknown'
+            const toolKind = TOOL_KIND[toolName] ?? 'edit'
+            const toolColor = {
+              read: 'text-cyan-400',
+              edit: 'text-amber-400',
+              write: 'text-green-400',
+              shell: 'text-purple-400',
+            }[toolKind]
             const argsStr = call.toolArgs
               ? JSON.stringify(call.toolArgs, null, 2)
               : ''
@@ -87,8 +117,8 @@ export function ExecutionDetail({ steps }: { steps: CodingStep[] }) {
                 {/* 调用 */}
                 <div className="bg-slate-950/50 rounded p-2 border border-slate-800">
                   <div className="flex items-start gap-1.5 mb-1">
-                    <Wrench className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
-                    <span className="text-amber-400 font-medium">
+                    <Wrench className={`w-3 h-3 ${toolColor} mt-0.5 shrink-0`} />
+                    <span className={`${toolColor} font-medium`}>
                       {toolIcon} {toolName}
                     </span>
                     <span className="text-slate-600 ml-auto">

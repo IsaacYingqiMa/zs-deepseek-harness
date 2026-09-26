@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 背景:深琥珀色(仿古卷轴) -->
+  <rect width="64" height="64" rx="10" fill="url(#bg)" />
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b8860b" />
+      <stop offset="100%" stop-color="#704214" />
+    </linearGradient>
+  </defs>
+
+  <!-- 龙字(简化书法风) -->
+  <text
+    x="32" y="44"
+    font-family="'STKaiti', 'KaiTi', '楷体', 'Songti SC', serif"
+    font-size="38"
+    font-weight="700"
+    fill="#f5e6c4"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >龙</text>
+</svg>

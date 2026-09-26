@@ -7,7 +7,14 @@
  *   - 停止帧:JSON {is_speaking: false}
  *
  * 后端 → FunASR:原样转发
+ *
+ * WebSocket messages from the browser are parsed as `unknown` because
+ * FunASR allows opaque configuration; we narrow per-message before use.
  */
+/* eslint-disable typescript/no-unsafe-assignment,
+   typescript/no-unsafe-member-access,
+   typescript/no-unsafe-argument,
+   typescript/use-unknown-in-catch-callback-variable */
 import type { WebSocket } from 'ws'
 import { logger } from '../logger.js'
 import type { FunasrClient } from '../asr-relay/funasr-client.js'

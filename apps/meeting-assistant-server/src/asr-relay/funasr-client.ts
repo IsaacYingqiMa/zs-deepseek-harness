@@ -9,7 +9,14 @@
  *
  * 服务端响应(JSON):
  *   {text, mode: "online"|"offline"|"2pass-online"|"2pass-offline", timestamp, is_final}
+ *
+ * FunASR server messages are deliberately typed as unknown at the boundary
+ * because the upstream protocol is loosely-typed JSON; each branch narrows.
  */
+/* eslint-disable typescript/no-unsafe-assignment,
+   typescript/no-unsafe-argument,
+   typescript/prefer-promise-reject-errors,
+   typescript/use-unknown-in-catch-callback-variable */
 import { WebSocket } from 'ws'
 import { logger } from '../logger.js'
 

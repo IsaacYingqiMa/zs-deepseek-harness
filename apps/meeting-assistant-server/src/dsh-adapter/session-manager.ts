@@ -8,9 +8,16 @@
  *   4. 暴露事件给其他模块
  *
  * 注意:这是对接 dsh 后端的核心。
+ *
  * dsh 后端启动: `pnpm dsh web` (默认 :3080)
  * dsh 的 HTTP API 通过 @anthropic-ai/sdk 的 message format 通信。
+ *
+ * dsh streaming events are deliberately typed as unknown at the boundary
+ * because they cross an SDK seam; the receiving layer narrows per event.
  */
+/* eslint-disable typescript/no-unsafe-assignment,
+   typescript/no-unsafe-member-access,
+   typescript/use-unknown-in-catch-callback-variable */
 import { EventEmitter } from 'events'
 import { logger } from '../logger.js'
 import type { Task } from '../types/task.js'
