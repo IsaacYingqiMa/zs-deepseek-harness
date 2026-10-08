@@ -27,21 +27,9 @@ import { AgentHistoryModal } from './AgentHistoryModal'
 
 const IDLE_TIMEOUT_MS = 5000
 
-type StoreKey =
-  | 'intent' | 'feasibility' | 'ruleFallback'
-  | 'specAgent' | 'devAgent' | 'testAgent'
-  | 'executor'
-
-function agentTypeToStoreKey(t: AgentType): StoreKey {
-  switch (t) {
-    case 'intent': return 'intent'
-    case 'feasibility': return 'feasibility'
-    case 'rule-fallback': return 'ruleFallback'
-    case 'spec-agent': return 'specAgent'
-    case 'dev-agent': return 'devAgent'
-    case 'test-agent': return 'testAgent'
-    case 'executor': return 'executor'
-  }
+// store.agents key 现在跟 AgentType 完全对齐(都是 kebab-case),直接用就行
+function agentTypeToStoreKey(t: AgentType): AgentType {
+  return t
 }
 
 /**

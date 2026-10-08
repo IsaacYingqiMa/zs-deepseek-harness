@@ -1,0 +1,19 @@
+{
+  "statuses": [
+    { "value": "pending", "label": "待办", "tagClass": "tag-pending" },
+    { "value": "progress", "label": "处理中", "tagClass": "tag-progress" },
+    { "value": "done", "label": "已完成", "tagClass": "tag-done" },
+    { "value": "closed", "label": "已关闭", "tagClass": "tag-closed" }
+  ],
+  "priorities": [
+    { "value": "high", "label": "高" },
+    { "value": "medium", "label": "中" },
+    { "value": "low", "label": "低" }
+  ],
+  "categories": [
+    { "value": "bug", "label": "Bug" },
+    { "value": "feature", "label": "功能" },
+    { "value": "improve", "label": "改进" },
+    { "value": "task", "label": "任务" }
+  ]
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>实时数据大屏</title>
+  <link rel="stylesheet" href="./css/theme.css" />
+  <style>
+    /* 单屏首屏:主区按视口剩余高度分配,内容不超出屏幕、不出滚动条 */
+    .main-grid {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+    .chart-card,
+    .activity-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+    }
+    .chart-card canvas {
+      flex: 1;
+      min-height: 0;
+      max-width: 100%;
+      max-height: 100%;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <header class="dashboard-header">
+      <h1 class="dashboard-title">📊 实时数据大屏</h1>
+      <div class="dashboard-time" id="clock">--:--:--</div>
+    </header>
+
+    <!-- KPI 卡片区(横向) -->
+    <section class="kpi-grid" id="kpi-container">
+      <!-- 由 kpi.js 动态渲染 -->
+    </section>
+
+    <!-- 主区:图表 + 活动流 -->
+    <section class="main-grid">
+      <div class="card chart-card">
+        <div class="card-header">
+          <h2 class="card-title">最近 7 天订单</h2>
+        </div>
+        <canvas id="chart-canvas" width="800" height="420"></canvas>
+      </div>
+
+      <div class="card activity-card">
+        <div class="card-header">
+          <h2 class="card-title">实时活动</h2>
+          <span class="pulse-dot"></span>
+        </div>
+        <div id="activity-container">
+          <!-- 由 activity.js 动态渲染 -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ★ 项目内版本号徽章(显眼,右上角)— 由系统自动写入 data/version.json -->
+  <div id="version-badge" class="version-badge">
+    <span class="version-badge-dot"></span>
+    <span class="version-badge-text">v--</span>
+  </div>
+
+  <script src="./js/data.js"></script>
+  <script src="./js/kpi.js"></script>
+  <script src="./js/chart.js"></script>
+  <script src="./js/activity.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,374 @@
+/* ========================================
+   theme.css — 暗色科技感(★ 可改)
+   单屏自适应:铺满视口,内容不溢出、不滚动
+   ======================================== */
+
+:root {
+  --bg: #0a0e27;
+  --bg-card: #131938;
+  --bg-card-hover: #18204a;
+  --primary: #00d4ff;
+  --success: #10b981;
+  --warning: #fbbf24;
+  --danger: #ef4444;
+  --text: #e5e7eb;
+  --text-dim: #9ca3af;
+  --border: rgba(0, 212, 255, 0.22);
+  /* 随视口收缩的间距/字号,保证任意屏幕都在一屏内 */
+  --gap: clamp(8px, 1.6vh, 20px);
+  --pad-card: clamp(10px, 1.8vh, 20px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 铺满当前视口(不再固定 1920×1080),禁止出现滚动条 */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0, 212, 255, 0.045) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, rgba(0, 212, 255, 0.045) 0 1px, transparent 1px 48px),
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 255, 0.18) 0%, transparent 60%),
+    radial-gradient(at 20% 30%, rgba(0, 212, 255, 0.10) 0%, transparent 50%),
+    radial-gradient(at 80% 70%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(0, 212, 255, 0.04) 0%, transparent 30%, rgba(0, 212, 255, 0.03) 100%);
+  background-attachment: fixed;
+}
+
+.dashboard {
+  width: 100%;
+  height: 100vh;
+  max-width: 1920px;
+  margin: 0 auto;
+  padding: clamp(10px, 2vh, 24px) clamp(12px, 1.4vw, 28px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+#activity-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dashboard-header {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--gap);
+  padding-bottom: clamp(6px, 1.2vh, 16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard-title {
+  font-size: clamp(16px, 2.2vh, 24px);
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--primary), var(--success));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dashboard-time {
+  font-family: monospace;
+  font-size: clamp(12px, 1.6vh, 17px);
+  color: var(--primary);
+  letter-spacing: 1px;
+  /* 向左避让固定定位的版本号徽章(top:20px / right:24px),防止重叠 */
+  margin-right: clamp(120px, 9vw, 170px);
+}
+
+/* KPI 卡片:单行不换行,卡片数再多也不会撑高页面 */
+.kpi-grid {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+  min-width: 0;
+}
+
+.kpi-card {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--pad-card);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(0, 212, 255, 0.08);
+}
+
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 212, 255, 0.10) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--primary), var(--success));
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 6px 28px rgba(0, 212, 255, 0.22), inset 0 1px 0 rgba(0, 212, 255, 0.12);
+}
+
+.kpi-label {
+  font-size: clamp(10px, 1.3vh, 13px);
+  color: var(--text-dim);
+  margin-bottom: clamp(3px, 0.8vh, 8px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-value {
+  font-size: clamp(18px, 3.2vh, 30px);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: clamp(2px, 0.5vh, 5px);
+}
+
+.kpi-trend {
+  font-size: clamp(9px, 1.2vh, 12px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kpi-trend.up {
+  color: var(--success);
+}
+
+.kpi-trend.down {
+  color: var(--danger);
+}
+
+.kpi-trend.flat {
+  color: var(--text-dim);
+}
+
+.kpi-icon {
+  position: absolute;
+  top: clamp(8px, 1.4vh, 16px);
+  right: clamp(8px, 1.2vw, 16px);
+  font-size: clamp(16px, 2.4vh, 24px);
+  opacity: 0.6;
+}
+
+/* 主区:图表 + 活动流 */
+.main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--gap);
+}
+
+.card {
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--pad-card);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(0, 212, 255, 0.08);
+}
+
+.card-header {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: clamp(6px, 1.4vh, 16px);
+}
+
+.card-title {
+  font-size: clamp(12px, 1.8vh, 16px);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-tag {
+  font-size: clamp(9px, 1.2vh, 12px);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 212, 255, 0.15);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.chart-card canvas {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 活动流 */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: clamp(4px, 0.9vh, 10px) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: clamp(11px, 1.5vh, 14px);
+  animation: slideIn 0.3s ease-out;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.activity-icon {
+  width: clamp(20px, 3vh, 30px);
+  height: clamp(20px, 3vh, 30px);
+  border-radius: 50%;
+  background: rgba(0, 212, 255, 0.15);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(11px, 1.6vh, 15px);
+  flex-shrink: 0;
+}
+
+.activity-icon.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.activity-icon.warning {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+}
+
+.activity-icon.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.activity-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.activity-text {
+  color: var(--text);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-time {
+  font-size: clamp(9px, 1.2vh, 12px);
+  color: var(--text-dim);
+}
+
+/* ★ 项目内版本号徽章(显眼,右上角)— 由系统自动写入 data/version.json */
+.version-badge {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: monospace;
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0, 212, 255, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.version-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(0, 212, 255, 0.4);
+}
+
+.version-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: badge-pulse 1.8s infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.version-badge.bumped {
+  animation: badge-bump 0.5s ease-out;
+}
+
+@keyframes badge-bump {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); box-shadow: 0 6px 28px rgba(0, 212, 255, 0.6); }
+  100% { transform: scale(1); }
+}

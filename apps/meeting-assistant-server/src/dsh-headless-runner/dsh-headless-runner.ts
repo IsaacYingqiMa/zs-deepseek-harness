@@ -17,6 +17,8 @@
 /* eslint-disable typescript/no-unnecessary-condition */
 import { EventEmitter } from 'events'
 import { spawn } from 'child_process'
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { logger } from '../logger.js'
 import type { Task } from '../types/task.js'
 
@@ -87,6 +89,8 @@ interface DshJsonEvent {
 
 export class DshHeadlessRunner extends EventEmitter {
   private options: Required<DshHeadlessRunnerOptions> & { projectType: ProjectType; thinkingLevel: ThinkingLevel }
+  /** 当前 task 的项目路径(每次 execute() 设置一次,供 buildPrompt 读 AIPROMPT.md) */
+  private currentProjectPath = ''
 
   constructor(options: DshHeadlessRunnerOptions) {
     super()
@@ -118,6 +122,9 @@ export class DshHeadlessRunner extends EventEmitter {
   async execute(task: Task, projectPath?: string): Promise<{ success: boolean; modifiedFiles: string[]; error?: string }> {
     const startTime = Date.now()
     const modifiedFiles = new Set<string>()
+
+    // 0. 设置当前 projectPath(供 buildPrompt 读 AIPROMPT.md 用)
+    this.currentProjectPath = projectPath || ''
 
     // 1. 构造 task 描述(直接喂给 dsh)
     const prompt = this.buildPrompt(task)
@@ -281,8 +288,12 @@ export class DshHeadlessRunner extends EventEmitter {
         const input: Record<string, unknown> = (e.input ?? e.args ?? {}) as Record<string, unknown>
         const callId = e.callId || `tool-${Date.now()}`
 
-        // 记录文件改动(edit_file / write_file / multi_edit 等)
-        if (['edit_file', 'write_file', 'multi_edit', 'str_replace', 'create_file', 'fs_write', 'str_replace_based_edit_tool'].includes(toolName)) {
+        // 记录文件改动(扩展工具名以兼容 dsh / 不同 LLM 工具)
+        // ★ dsh headless 实际用的工具名是 'edit' / 'write'(不带 _file 后缀)
+        if (
+          ['edit_file', 'write_file', 'multi_edit', 'str_replace', 'create_file', 'fs_write', 'str_replace_based_edit_tool',
+            'edit', 'write'].includes(toolName)
+        ) {
           // 尝试从 input 提取文件路径(多种 schema)
           const path = extractPathFromInput(input)
           if (path) modifiedFiles.add(path)
@@ -420,7 +431,52 @@ export class DshHeadlessRunner extends EventEmitter {
     const lines: string[] = []
     lines.push(`【会议任务 #${task.id.slice(0, 6)} · 纯 HTML】`)
     lines.push('')
+
+    // ★★★ 项目级 AI 改造指南(项目自带 AIPROMPT.md,优先级最高)★★★
+    // 模板项目(工单 / 大屏)的 AIPROMPT.md 写明:可改区 / 不可改区 / 改造示例 / 硬约束
+    // dsh 必须严格遵守,这是 demo 稳定的基石
+    const aiPromptPath = join(this.currentProjectPath, 'AIPROMPT.md')
+    if (existsSync(aiPromptPath)) {
+      try {
+        const projectGuide = readFileSync(aiPromptPath, 'utf-8')
+        lines.push('# 📋 项目级 AI 改造指南(项目自带,优先级最高)')
+        lines.push('')
+        lines.push('```')
+        lines.push(projectGuide)
+        lines.push('```')
+        lines.push('')
+        lines.push('---')
+        lines.push('')
+        logger.info({ aiPromptPath, bytes: projectGuide.length }, 'AIPROMPT.md injected into dsh prompt')
+      } catch (err) {
+        logger.warn({ err, aiPromptPath }, 'failed to read AIPROMPT.md')
+      }
+    } else {
+      lines.push('⚠️ 警告:项目根目录没有 AIPROMPT.md。请谨慎修改,只改 .html / .css / .js,不要碰架构。')
+      lines.push('')
+    }
+
     lines.push('⚡ 这是一个简单任务(纯 HTML 文件修改),不要过多思考或分析,直接动手。')
+    lines.push('')
+
+    // ★★★ 项目运行机制说明(让 dsh 知道系统怎么跟它配合)★★★
+    lines.push('## 🔧 项目运行机制(必读,避免乱改)')
+    lines.push('')
+    lines.push('### 版本号机制')
+    lines.push('- 系统会在每次你修改文件后,**自动给项目根目录的 `data/version.json` +1**')
+    lines.push('- 这个文件用来在前端显示"v5"、"v6" 这种版本徽章,告诉用户改了多少次')
+    lines.push('- **绝对不要手动改 `data/version.json`** — 系统会自己写,你改了会被覆盖还会乱')
+    lines.push('- 改完后**不需要**手动去更新版本号,系统自动跟踪')
+    lines.push('')
+    lines.push('### iframe 自动刷新')
+    lines.push('- 你改完文件后,**系统会自动重新加载左侧预览 iframe**')
+    lines.push('- 你不需要自己刷新页面,改完就直接结束即可')
+    lines.push('- 如果你需要"验证修改效果",**不要**跑 bash 命令,直接 list_files 看看改后的内容就够了')
+    lines.push('')
+    lines.push('### AIPROMPT.md 是规则不是文件')
+    lines.push('- 上面的 AIPROMPT.md 是"项目改造规则",你**已经读到了**(它在 prompt 里)')
+    lines.push('- 不要 `read_file AIPROMPT.md` — 它不在项目里,读了会报错')
+    lines.push('- 直接按上面的"可改区"/"不可改区"开始动手')
     lines.push('')
     lines.push('## 需求')
     lines.push(task.requirement.interpreted)
@@ -433,18 +489,37 @@ export class DshHeadlessRunner extends EventEmitter {
     }
 
     lines.push('## 工作流程(纯 HTML 项目,极简)')
-    lines.push('1. list_files → 看 HTML 文件(只看 1-2 个相关文件)')
-    lines.push('2. read_file → 读取目标 HTML')
-    lines.push('3. edit_file → 修改 HTML 标签/属性/内容')
-    lines.push('4. 完成 → 直接结束,不需要 build/verify')
+    lines.push('1. **已经读过 AIPROMPT.md 了**(在 prompt 顶部)→ 知道哪些可改/不可改')
+    lines.push('2. list_files → 看 HTML 文件(只看 1-2 个相关文件)')
+    lines.push('3. read_file → 读取目标 HTML')
+    lines.push('4. edit_file → 修改 HTML 标签/属性/内容(只改可改区!)')
+    lines.push('5. **自我确认清单**(改完后在心里检查):')
+    lines.push('   - 我改的文件都在 AIPROMPT.md 的"可改区"里吗?')
+    lines.push('   - 我没碰 `data/version.json` / `index.html` 框架 / `js/app.js` 路由吧?')
+    lines.push('   - 改动能让用户需求直接满足吗?')
+    lines.push('6. 完成 → 回复 "✅ 完成 + [改动文件列表]",然后结束')
     lines.push('')
 
     lines.push('## 约束(必读)')
+    lines.push('- **严格遵守 AIPROMPT.md 里的"可改区"和"不可改区"**')
     lines.push('- 只改 .html / .css / .js 文件')
     lines.push('- **禁止**:pnpm install / lint / build / dev')
     lines.push('- **禁止**:新建依赖(package.json 不变)')
     lines.push('- **最多 4-5 个工具调用**就应完成')
     lines.push('- 失败立即停止,不要盲目重试')
+    lines.push('')
+
+    // ★★★ 防"什么都没改"陷阱 ★★★
+    lines.push('## ⚠️ 重要:必须真的改文件')
+    lines.push('- 用户的需求可能听起来模糊(比如"加点数据"、"再好看点")')
+    lines.push('- **不要** 因为需求模糊就什么都不做')
+    lines.push('- **不要** 在分析阶段花超过 1 个工具调用')
+    lines.push('- 模糊需求的处理方式:')
+    lines.push('  - "加点数据" → 在 js/data.js 的对应数组里**加 1-2 个新条目**')
+    lines.push('  - "再好看点" → 在 css/theme.css 里**微调 1-2 个颜色变量**')
+    lines.push('  - "加个 X 功能" → 加 1 个最小的、最直接的实现(不要做大而全)')
+    lines.push('- **任务完成的硬标准**:至少调用了 1 次 edit_file 或 write_file')
+    lines.push('- 如果你最终没有调用 edit_file / write_file,**任务就是失败的**')
     lines.push('')
 
     lines.push('## 输出要求')

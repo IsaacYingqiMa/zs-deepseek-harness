@@ -16,7 +16,7 @@
  * 工具定义遵循 Anthropic tool use schema
  */
 import { EventEmitter } from 'events'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs, readFileSync } from 'fs'
 import { join } from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -124,6 +124,8 @@ export interface CodingAgentConfig {
   projectPath: string
   /** 最大工具调用轮次,防止无限循环 */
   maxRounds?: number
+  /** 项目类型 — 用于切换 prompt 模板(pure-html 走极简版,不跑 lint/build) */
+  projectType?: 'pure-html' | 'framework'
 }
 
 export class CodingAgent extends EventEmitter {
@@ -202,8 +204,8 @@ export class CodingAgent extends EventEmitter {
         }
         const result = await this.executeTool(toolUse, taskId)
 
-        // 记录修改的文件
-        if (['edit_file', 'write_file'].includes(toolUse.name)) {
+        // 记录修改的文件(扩展工具名以兼容 dsh / 不同 LLM 工具)
+        if (['edit_file', 'write_file', 'str_replace', 'str_replace_editor', 'create_file', 'multi_edit'].includes(toolUse.name)) {
           const modifiedPath = toolUse.input.path
           if (modifiedPath && !modifiedFiles.has(modifiedPath)) {
             modifiedFiles.add(modifiedPath)
@@ -236,6 +238,15 @@ export class CodingAgent extends EventEmitter {
   // ===== 私有方法 =====
 
   private buildSystemPrompt(): string {
+    // ★ pure-html 项目走极简 prompt(不跑 lint/build/test)
+    if (this.config.projectType === 'pure-html') {
+      return this.buildPureHtmlSystemPrompt()
+    }
+    return this.buildFrameworkSystemPrompt()
+  }
+
+  /** 框架项目(默认)— 跑 lint/build 验证 */
+  private buildFrameworkSystemPrompt(): string {
     return `你是会议需求的代码执行助手。
 
 # 角色
@@ -268,6 +279,55 @@ export class CodingAgent extends EventEmitter {
 - **每个文件改完就继续,不要回头优化已完成的代码**
 - 完成时说"✅ 完成,改了哪些文件"
 - 最多调用 8 个工具,达到目标就停止`
+  }
+
+  /** 纯 HTML 项目 — 极简,不跑验证 */
+  private buildPureHtmlSystemPrompt(): string {
+    // ★★★ 注入项目级 AIPROMPT.md(可改区/不可改区)★★★
+    const aiPromptPath = join(this.config.projectPath, 'AIPROMPT.md')
+    let projectGuide = '(项目根目录无 AIPROMPT.md,默认只改 .html/.css/.js,不要碰架构)'
+    if (existsSync(aiPromptPath)) {
+      try {
+        projectGuide = readFileSync(aiPromptPath, 'utf-8')
+        logger.info({ aiPromptPath, bytes: projectGuide.length }, 'AIPROMPT.md injected into CodingAgent prompt')
+      } catch (err) {
+        logger.warn({ err, aiPromptPath }, 'failed to read AIPROMPT.md')
+      }
+    }
+
+    return `你是会议需求的代码执行助手(纯 HTML 模式)。
+
+# 项目级 AI 改造指南(项目自带,优先级最高)
+\`\`\`
+${projectGuide}
+\`\`\`
+
+# ⚠️ 重要:必须真的改文件
+- 用户的需求可能听起来模糊(比如"加点数据"、"再好看点")
+- 不要因为需求模糊就什么都不做
+- 不要在分析阶段花超过 1 个工具调用
+- 模糊需求处理:
+  - "加点数据" → 在 js/data.js 对应数组里加 1-2 个新条目
+  - "再好看点" → 在 css/theme.css 里微调 1-2 个颜色变量
+- **任务完成的硬标准**:至少调用 1 次 edit_file 或 write_file
+
+# 工作流程(纯 HTML,极简)
+1. \`list_files\` → 看 HTML 文件
+2. \`read_file\` → 读目标文件
+3. \`edit_file\` / \`write_file\` → 改(只改 AIPROMPT.md 里的"可改区")
+4. 完成 → 回复"✅ 完成 + [改动文件列表]"
+
+# 硬约束
+- 只改 .html / .css / .js 文件
+- 禁止:pnpm install / lint / build / dev
+- 禁止:新建依赖
+- 最多 4-5 个工具调用
+- 不要 read_file AIPROMPT.md(它已经在 prompt 顶部)
+
+# 输出风格
+- 简洁,不啰嗦
+- 直接动手,不要问问题
+- 完成时说"✅ 完成,改了哪些文件"`
   }
 
   private buildUserMessage(task: Task): string {

@@ -78,6 +78,7 @@ export class ProjectsApi {
           baseUrl: llmConfig.baseUrl,
           model: llmConfig.model,
           projectPath,
+          projectType,  // ★ 传给 CodingAgent,纯 HTML 走极简 prompt
         })
 
         // 4b. DshHeadlessRunner(主路径,按 type 给不同 timeout + thinkingLevel)

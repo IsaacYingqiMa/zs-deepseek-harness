@@ -3,8 +3,8 @@
  *
  * 状态流转:
  *   detected → analyzing → confirmed → executing → completed
- *                  ↓            ↓
- *               rejected     deferred
+ *                  ↓            ↓              ↓
+ *               rejected     deferred      superseded
  *                                  ↓
  *                              confirmed
  *
@@ -14,6 +14,8 @@
  *   - CONFIRM: 确认执行
  *   - DEFER / REJECT: 暂存 / 拒绝
  *   - EXECUTE / COMPLETE / FAIL: 执行阶段
+ *   - SUPERSEDE: 被新需求取代(task-queue.ts 直接赋值,不走事件;
+ *     这里加事件定义仅为状态机完整性)
  */
 import { createMachine, type AnyEventObject } from 'xstate'
 import type { TaskStatus } from '../types/task.js'
@@ -27,6 +29,7 @@ export type TaskState =
   | 'failed'
   | 'rejected'
   | 'deferred'
+  | 'superseded'
 
 export type TaskEvent =
   | { type: 'ANALYZE' }
@@ -39,6 +42,7 @@ export type TaskEvent =
   | { type: 'COMPLETE'; files: string[] }
   | { type: 'FAIL'; error: string }
   | { type: 'RETRY' }
+  | { type: 'SUPERSEDE'; newTaskId: string }
 
 export const taskMachine = createMachine({
   id: 'task',
@@ -48,6 +52,7 @@ export const taskMachine = createMachine({
       on: {
         ANALYZE: 'analyzing',
         REJECT: 'rejected',
+        SUPERSEDE: 'superseded',
       },
     },
     analyzing: {
@@ -56,6 +61,7 @@ export const taskMachine = createMachine({
         INFEASIBLE: 'rejected',
         DEFER: 'deferred',
         REJECT: 'rejected',
+        SUPERSEDE: 'superseded',
       },
     },
     confirmed: {
@@ -63,6 +69,7 @@ export const taskMachine = createMachine({
         EXECUTE: 'executing',
         DEFER: 'deferred',
         REJECT: 'rejected',
+        SUPERSEDE: 'superseded',
       },
     },
     executing: {
@@ -70,6 +77,7 @@ export const taskMachine = createMachine({
         COMPLETE: 'completed',
         FAIL: 'failed',
         REJECT: 'rejected',
+        SUPERSEDE: 'superseded',
       },
     },
     completed: { type: 'final' },
@@ -77,6 +85,7 @@ export const taskMachine = createMachine({
       on: {
         RETRY: 'executing',
         REJECT: 'rejected',
+        SUPERSEDE: 'superseded',
       },
     },
     rejected: { type: 'final' },
@@ -85,8 +94,12 @@ export const taskMachine = createMachine({
         CONFIRM: 'analyzing',
         REJECT: 'rejected',
         EXECUTE: 'confirmed',
+        SUPERSEDE: 'superseded',
       },
     },
+    // ★ 新增:superseded 状态(被新需求取代)
+    // 终态,不再调度,前端展示灰色
+    superseded: { type: 'final' },
   },
 })
 
@@ -95,9 +108,9 @@ export function isActiveState(state: TaskStatus): boolean {
   return ['detected', 'analyzing', 'confirmed', 'deferred'].includes(state)
 }
 
-/** 状态机是否处于"已完成" */
+/** 状态机是否处于"已完成"(含 superseded — 不再调度) */
 export function isTerminalState(state: TaskStatus): boolean {
-  return ['completed', 'rejected', 'failed'].includes(state)
+  return ['completed', 'rejected', 'failed', 'superseded'].includes(state)
 }
 
 /** 状态机的下一步判断 */

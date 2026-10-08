@@ -278,10 +278,11 @@ export class TaskQueue {
       if (!existingTarget) continue
 
       // 互相包含或高重合 → 同一对象
+      // ★ 演示版:阈值从 0.5 提到 0.6,语义去重更严,避免"紧急程度"和"紧急标签"被认成同一对象
       const contains =
         existingTarget.includes(normTarget) ||
         normTarget.includes(existingTarget) ||
-        this.charOverlap(existingTarget, normTarget) >= 0.5
+        this.charOverlap(existingTarget, normTarget) >= 0.6
       if (contains) {
         return task
       }

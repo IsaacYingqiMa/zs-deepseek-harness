@@ -58,6 +58,8 @@ interface MeetingState {
   // ★ 版本号追踪
   currentVersion: number
   versionHistory: VersionBump[]
+  /** 每个项目当前的版本号(per-project 独立计数) */
+  projectVersions: Map<string, number>
 
   // ★ 智能体工作状态(7 个智能体)
   // - intent / feasibility / rule-fallback(判断层)
@@ -66,11 +68,11 @@ interface MeetingState {
   agents: {
     intent: AgentStatus | null
     feasibility: AgentStatus | null
-    ruleFallback: AgentStatus | null
+    'rule-fallback': AgentStatus | null
     executor: AgentStatus | null
-    specAgent: AgentStatus | null
-    devAgent: AgentStatus | null
-    testAgent: AgentStatus | null
+    'spec-agent': AgentStatus | null
+    'dev-agent': AgentStatus | null
+    'test-agent': AgentStatus | null
   }
 
   // ★ 模块的 agent 跑动历史(模块 → AgentRun[])
@@ -146,16 +148,17 @@ export const useMeetingStore = create<MeetingState>(set => ({
   agents: {
     intent: null,
     feasibility: null,
-    ruleFallback: null,
+    'rule-fallback': null,
     executor: null,
-    specAgent: null,
-    devAgent: null,
-    testAgent: null,
+    'spec-agent': null,
+    'dev-agent': null,
+    'test-agent': null,
   },
   taskPhases: new Map(),
   moduleAgentHistory: new Map(),
   currentVersion: 1,
   versionHistory: [],
+  projectVersions: new Map(),
 
   setProjects: (projects) => { set({ projects }) },
   setCurrentProject: (p) => { set({ currentProject: p }) },
@@ -274,8 +277,20 @@ export const useMeetingStore = create<MeetingState>(set => ({
   }) },
 
   // ★ 应用版本号 bump:加到 versionHistory + 更新 currentVersion
+  // bump 带 projectPath → 是 per-project 版本号(只更新项目版本,不覆盖全局 currentVersion)
+  // bump 不带 projectPath → 是全局版本号(更新 currentVersion)
   applyVersionBump: (bump) => { set((s) => {
     const history = [...s.versionHistory, bump].slice(-50)
+    if (bump.projectPath) {
+      // per-project 版本号:按 projectPath 分桶存
+      const projVersions = new Map(s.projectVersions)
+      projVersions.set(bump.projectPath, bump.version)
+      return {
+        projectVersions: projVersions,
+        versionHistory: history,
+      }
+    }
+    // 全局版本号
     return {
       currentVersion: bump.version,
       versionHistory: history,
@@ -307,16 +322,17 @@ export const useMeetingStore = create<MeetingState>(set => ({
     agents: {
       intent: null,
       feasibility: null,
-      ruleFallback: null,
+      'rule-fallback': null,
       executor: null,
-      specAgent: null,
-      devAgent: null,
-      testAgent: null,
+      'spec-agent': null,
+      'dev-agent': null,
+      'test-agent': null,
     },
     taskPhases: new Map(),
     moduleAgentHistory: new Map(),
     currentVersion: 1,
     versionHistory: [],
+    projectVersions: new Map(),
   }) },
 
   addModuleTask: (judgeId, task) => { set((s) => {

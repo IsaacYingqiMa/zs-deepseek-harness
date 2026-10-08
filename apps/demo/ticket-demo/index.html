@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>工单管理系统</title>
+  <link rel="stylesheet" href="./css/layout.css" />
+  <link rel="stylesheet" href="./css/theme.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 左侧菜单(不可改结构,可改 label 文字) -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">📋</div>
+        <h1>工单系统</h1>
+      </div>
+      <nav class="menu" id="menu">
+        <a class="menu-item active" data-page="dashboard" href="#/dashboard">
+          <span class="menu-icon">📊</span>
+          <span class="menu-label">概览</span>
+        </a>
+        <a class="menu-item" data-page="tickets" href="#/tickets">
+          <span class="menu-icon">🎫</span>
+          <span class="menu-label">工单列表</span>
+        </a>
+        <a class="menu-item" data-page="new-ticket" href="#/new-ticket">
+          <span class="menu-icon">➕</span>
+          <span class="menu-label">新建工单</span>
+        </a>
+        <a class="menu-item" data-page="settings" href="#/settings">
+          <span class="menu-icon">⚙️</span>
+          <span class="menu-label">设置</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">A</div>
+          <div>
+            <div class="user-name">Admin</div>
+            <div class="user-role">管理员</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧内容区 -->
+    <main class="content">
+      <div id="page-container"></div>
+    </main>
+  </div>
+
+  <!-- ★ 项目内版本号徽章(显眼,右下角)— 由 app.js 从 data/version.json 拉取 -->
+  <div id="version-badge" class="version-badge">
+    <span class="version-badge-dot"></span>
+    <span class="version-badge-text">v--</span>
+  </div>
+
+  <!-- 引入 JS(顺序重要:不可改) -->
+  <script src="./js/data.js"></script>
+  <script src="./js/pages/dashboard.js"></script>
+  <script src="./js/pages/tickets.js"></script>
+  <script src="./js/pages/ticket-detail.js"></script>
+  <script src="./js/pages/new-ticket.js"></script>
+  <script src="./js/pages/settings.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

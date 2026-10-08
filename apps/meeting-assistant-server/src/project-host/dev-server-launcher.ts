@@ -175,9 +175,16 @@ export class DevServerLauncher {
 
       server.on('error', reject)
 
-      server.listen(port, () => {
+      server.listen(port, '0.0.0.0', () => {
+        // ★ 从环境变量读对外可访问的 baseUrl
+        // env 格式:http://172.22.4.232(不带端口)或 http://172.22.4.232:8080(带端口也行,代码自动处理)
+        // 没设 fallback 到 localhost(只在服务器本地访问有用)
+        const envBase = process.env.MEETING_PUBLIC_BASE_URL
+        const url = envBase
+          ? `${envBase.replace(/\/+$/, '')}:${port}`  // env 有 → 拼端口
+          : `http://localhost:${port}`                // env 没 → fallback
         const handle: DevServerHandle = {
-          url: `http://localhost:${port}`,
+          url,
           port,
           process: { kill: () => server.close() },
         }

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useMeetingStore } from '../store'
-import type { AgentType, ModuleAgentRun, AgentState } from '../types'
+import type { AgentType, AgentStatus, ModuleAgentRun, AgentState } from '../types'
 
 const STATUS_STYLE: Record<AgentState, { icon: LucideIcon; color: string; bg: string; label: string }> = {
   idle:      { icon: Clock,        color: 'text-slate-400',   bg: 'bg-slate-800/50',       label: '待机' },
@@ -85,13 +85,9 @@ export function AgentHistoryModal({
   }, [moduleAgentHistory, agentType])
 
   const currentStatus = (() => {
-    // store key 是驼峰,AgentType 是 kebab-case
-    const key = agentType === 'rule-fallback' ? 'ruleFallback'
-      : agentType === 'spec-agent' ? 'specAgent'
-        : agentType === 'dev-agent' ? 'devAgent'
-          : agentType === 'test-agent' ? 'testAgent'
-            : agentType  // intent / feasibility 直接用
-    return agents[key] ?? null
+    // store.agents 现在用 kebab-case key(跟 AgentType 对齐),直接用
+    const map = agents as Record<string, AgentStatus | null>
+    return map[agentType] ?? null
   })()
 
   const totalRuns = moduleRuns.reduce((s, m) => s + m.runs.length, 0)

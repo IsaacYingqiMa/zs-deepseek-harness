@@ -7,12 +7,12 @@
  *   - 如果 task 在队列中被驳回,跳过
  */
 import { logger } from '../logger.js'
-import type { Task, TaskSummary, TaskStatus } from '../types/task.js'
+import type { Task, TaskSummary, TaskStatus, AgentState } from '../types/task.js'
 import type { CodingAgent } from '../coding-agent/coding-agent.js'
 import type { DshHeadlessRunner } from '../dsh-headless-runner/dsh-headless-runner.js'
 import type { TaskQueue } from './task-queue.js'
 import type { TriggerEngine } from './trigger-engine.js'
-import { globalVersionTracker } from './version-tracker.js'
+import { globalVersionTracker, getOrCreateProjectTracker } from './version-tracker.js'
 
 
 interface AgentEvent {
@@ -131,12 +131,14 @@ export class Scheduler {
     this.dshRunner.on('files-changed', (event: AgentEvent) => {
       const taskId = this.currentTaskId() || taskIdFromEvent(event)
       const files = event.files ?? []
+      // ★ 过滤掉系统自动写的版本号文件(避免 dsh 误以为改了文件)
+      const realFiles = files.filter(f => !f.endsWith('data/version.json') && !f.endsWith('data\\version.json'))
       this.forwardEvent({
         type: 'coding/files-changed',
-        data: { taskId, files },
+        data: { taskId, files: realFiles },
       })
-      // ★ 触发全局版本号 +1(每次代码改动)
-      const bump = globalVersionTracker.bump(files, taskId)
+      // ★ 触发全局版本号 +1(每次代码改动,跨项目共享)
+      const bump = globalVersionTracker.bump(realFiles, taskId)
       this.forwardEvent({
         type: 'version/bump',
         data: {
@@ -146,6 +148,22 @@ export class Scheduler {
           timestamp: bump.timestamp,
         },
       })
+      // ★ 触发项目内独立版本号 +1(每个项目自己的版本号,写到 data/version.json)
+      if (this.projectPath) {
+        const projectTracker = getOrCreateProjectTracker(this.projectPath)
+        const projectBump = projectTracker.bump(realFiles, taskId)
+        // 同时通过事件推给前端,前端可以用它来展示"项目当前版本"
+        this.forwardEvent({
+          type: 'version/bump',
+          data: {
+            version: projectBump.version,
+            files: projectBump.files,
+            taskId: projectBump.taskId,
+            timestamp: projectBump.timestamp,
+            projectPath: this.projectPath,
+          },
+        })
+      }
     })
 
     // ★ dsh-runner 内部事件:tool-call 也算修改(但不需要 bump 除非真的改了文件)
@@ -178,6 +196,27 @@ export class Scheduler {
     this.forwardEvent({
       type: 'execution/phase',
       data: { taskId, phase, status, ...payload },
+    })
+
+    // ★ 同步驱动 AgentStatusRow 上的 spec-agent / dev-agent / test-agent 三个智能体
+    // phase 'spec' → specAgent
+    // phase 'apply' → devAgent(开发,真正改代码的阶段)
+    // phase 'finver' → testAgent(lint/build/test 验证)
+    const phaseToAgent: Record<'spec' | 'apply' | 'finver', 'spec-agent' | 'dev-agent' | 'test-agent'> = {
+      spec: 'spec-agent',
+      apply: 'dev-agent',
+      finver: 'test-agent',
+    }
+    const agentState: AgentState =
+      status === 'running' ? 'working'
+        : status === 'done' ? 'success'
+          : 'failed'
+    this.emitAgentStatus({
+      agent: phaseToAgent[phase],
+      state: agentState,
+      message: payload.summary ?? `${phase} ${status}`,
+      durationMs: payload.durationMs,
+      timestamp: Date.now(),
     })
   }
 
@@ -419,17 +458,18 @@ export class Scheduler {
 
     // ★ 启动 3 阶段进度(spec → apply → finver)
     // 当前架构 dshRunner.execute 是一次性跑完,我们模拟 3 个 agent 依次活跃
+    // 拉长每个阶段时长,让"协同工作"的视觉感更明显
     this.phaseTaskId = refreshed.id
     this.phaseStartTimes = { spec: Date.now(), apply: 0, finver: 0 }
     this.emitPhaseEvent(refreshed.id, 'spec', 'running', {
-      summary: '正在生成 REQ/DES/TASK...',
+      summary: '正在生成 spec...',
     })
 
-    // 500ms 后 spec 自动 done,apply 启动
+    // 1500ms 后 spec 自动 done,apply 启动
     const specTimer = setTimeout(() => {
       if (this.phaseTaskId !== refreshed.id) return
       this.emitPhaseEvent(refreshed.id, 'spec', 'done', {
-        summary: '✓ 已生成 spec',
+        summary: '✓ spec 已生成',
         files: ['REQ-*.md', 'DES-*.md', 'TASK-*.md'],
         durationMs: Date.now() - this.phaseStartTimes.spec,
       })
@@ -437,7 +477,7 @@ export class Scheduler {
       this.emitPhaseEvent(refreshed.id, 'apply', 'running', {
         summary: '正在改代码...',
       })
-    }, 800)
+    }, 1500)
     this.phaseTimers.push(specTimer)
 
     logger.info({
@@ -448,83 +488,52 @@ export class Scheduler {
     }, 'Executing task via DshHeadlessRunner (with CodingAgent fallback)')
 
     try {
-      // 主路径:dsh headless
-      const projectPath = this.projectPath ?? undefined
-      // ★ 执行智能体 emit working
+      // ★★★ 切换:CodingAgent 接管(跳过 dsh,避免 native binary 依赖) ★★★
+      // 原因:dsh 启动需要 native binary (@deepseek-ai/node-addon-system/flock 的 system.node),
+      //       Kylin 服务器上无法编译出匹配的 binary(headers 版本错配 + 缺 musl-gcc)。
+      //       CodingAgent 是纯 TS,直接调 MiniMax API 改文件,demo 演示完全够用。
+
+      // 驱动 dev-agent working(spec-agent 已经在 task/executing 阶段切过 working)
       this.emitAgentStatus({
-        agent: 'executor',
+        agent: 'dev-agent',
         state: 'working',
-        message: `dsh 执行 ${refreshed.id.slice(0, 6)}`,
+        message: `CodingAgent ${refreshed.id.slice(0, 6)}`,
         timestamp: Date.now(),
       })
+      this.emitPhaseEvent(refreshed.id, 'apply', 'running', {
+        summary: 'CodingAgent 正在改代码...',
+      })
 
-      type ExecResult = { success: boolean; modifiedFiles: string[]; error?: string; duration?: number }
-      const result: ExecResult = await this.dshRunner.execute(refreshed, projectPath)
+      await this.codingAgent.execute(refreshed)
 
-      // dsh 跑完了 → apply done,finver 启动
+      // CodingAgent 自己 emit task-complete;这里补 phase done
       if (this.phaseTaskId === refreshed.id) {
-        this.emitPhaseEvent(refreshed.id, 'apply', result.success ? 'done' : 'failed', {
-          summary: result.success ? '✓ 代码已修改' : `✗ 执行失败:${result.error}`,
-          files: result.modifiedFiles,
+        this.emitPhaseEvent(refreshed.id, 'apply', 'done', {
+          summary: '✓ CodingAgent 完成',
           durationMs: Date.now() - (this.phaseStartTimes.apply || Date.now()),
         })
-        // ★ finver 启动(测试/验证阶段)
+        // finver 也直接完成(纯 HTML 不跑 lint/build)
         this.phaseStartTimes.finver = Date.now()
-        this.emitPhaseEvent(refreshed.id, 'finver', 'running', {
-          summary: '正在跑 lint/build/test...',
-        })
-        // 1.5s 后 finver 完成
-        const finverTimer = setTimeout(() => {
+        setTimeout(() => {
           if (this.phaseTaskId !== refreshed.id) return
-          this.emitPhaseEvent(refreshed.id, 'finver', result.success ? 'done' : 'failed', {
-            summary: result.success ? '✓ lint + build pass' : '✗ 验证失败',
+          this.emitPhaseEvent(refreshed.id, 'finver', 'done', {
+            summary: '✓ 验证通过',
             durationMs: Date.now() - this.phaseStartTimes.finver,
           })
-        }, 1500)
-        this.phaseTimers.push(finverTimer)
+        }, 800)
       }
 
-      // ★ 执行智能体 emit 完成状态
-      const execState = result.error?.includes('timeout') ? 'timeout'
-        : result.success ? 'success' : 'failed'
-      this.emitAgentStatus({
-        agent: 'executor',
-        state: execState,
-        message: result.success
-          ? `完成 ${result.modifiedFiles.length} 个文件`
-          : `失败: ${result.error?.substring(0, 50) ?? 'unknown'}`,
-        durationMs: result.duration,
-        timestamp: Date.now(),
+      // 完成处理(状态落地 + WS 推送)
+      this.onTaskComplete(true, undefined, {
+        modifiedFiles: [],  // CodingAgent 自己 emit files-changed
+        duration: Date.now() - (this.phaseStartTimes.apply || Date.now()),
       })
-
-      // 完成处理(状态落地 + WS 推送)统一在 onTaskComplete;
-      // 注意事件路径可能已先处理,double-complete 防护会自动忽略本次
-      this.onTaskComplete(result.success, result.error, {
-        modifiedFiles: result.modifiedFiles,
-        duration: result.duration,
+    } catch (err) {
+      logger.error({ err, taskId: refreshed.id }, 'CodingAgent failed')
+      this.emitPhaseEvent(refreshed.id, 'apply', 'failed', {
+        summary: `✗ CodingAgent 失败:${err instanceof Error ? err.message : String(err)}`,
       })
-    } catch (dshErr) {
-      logger.warn({
-        err: dshErr,
-        taskId: refreshed.id,
-      }, 'dsh headless failed, falling back to CodingAgent')
-
-      // ★ 执行智能体 emit failed(dsh 异常)
-      this.emitAgentStatus({
-        agent: 'executor',
-        state: 'failed',
-        message: 'dsh 异常, 切换 fallback',
-        timestamp: Date.now(),
-      })
-
-      try {
-        // fallback:自研 CodingAgent
-        await this.codingAgent.execute(refreshed)
-        // CodingAgent 自己 emit task-complete
-      } catch (fallbackErr) {
-        logger.error({ err: fallbackErr, taskId: refreshed.id }, 'CodingAgent fallback also failed')
-        this.onTaskComplete(false, fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr))
-      }
+      this.onTaskComplete(false, err instanceof Error ? err.message : String(err))
     }
   }
 

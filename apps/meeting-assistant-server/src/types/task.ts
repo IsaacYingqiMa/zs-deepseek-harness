@@ -171,8 +171,17 @@ export interface TranscriptSegment {
  * 智能体工作状态 —— 决策层各模块运行状态
  *
  * 给前端 AgentStatusRow 组件展示用,体现"哪些智能体在干活 / 哪些干完"
+ *
+ * 决策层 3 个(intent / feasibility / rule-fallback)+ 执行层 4 个(executor / spec-agent / dev-agent / test-agent)
  */
-export type AgentType = 'intent' | 'feasibility' | 'rule-fallback' | 'executor'
+export type AgentType =
+  | 'intent'
+  | 'feasibility'
+  | 'rule-fallback'
+  | 'executor'
+  | 'spec-agent'
+  | 'dev-agent'
+  | 'test-agent'
 
 export type AgentState =
   | 'idle'        // 空闲
@@ -188,6 +197,8 @@ export interface VersionBumpData {
   files: string[]
   taskId?: string
   timestamp: number
+  /** 哪个项目的版本号(per-project 版本号才有;全局版本号无此字段) */
+  projectPath?: string
 }
 
 /** 智能体状态更新事件 */

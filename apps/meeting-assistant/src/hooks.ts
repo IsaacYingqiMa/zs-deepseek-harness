@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMeetingStore } from './store'
 import { eventsWs, manualInputWs } from './ws-manager'
-import type { ModuleAgentRun } from './types'
+import type { AgentType, ModuleAgentRun } from './types'
 
 /**
  * 记录/更新智能体跑动(module 级别,用于弹窗展示)
@@ -112,6 +112,8 @@ export function useEventStream() {
         case 'task/executing':
           updateTask(event.data.id, { status: 'executing' })
           syncModuleTask(event.data.id, { currentStatus: 'executing' })
+          // ★ spec-agent 切 working(后端会随后通过 emitPhaseEvent 推 working→success)
+          setAgentStatus('spec-agent', { agent: 'spec-agent', state: 'working', message: '规划中...', updatedAt: Date.now() })
           break
         case 'task/completed':
           updateTask(event.data.id, {
@@ -126,10 +128,8 @@ export function useEventStream() {
           })
           // ★ 阶段切到 done(验收完成)
           setTaskPhase(event.data.id, 'done')
-          // ★ 把 3 个执行智能体都标 success(显示绿色完成态,不再卡在 working)
-          setAgentStatus('spec-agent', { agent: 'spec-agent', state: 'success', message: '任务完成', updatedAt: Date.now() })
-          setAgentStatus('dev-agent',  { agent: 'dev-agent',  state: 'success', message: '任务完成', updatedAt: Date.now() })
-          setAgentStatus('test-agent', { agent: 'test-agent', state: 'success', message: '任务完成', updatedAt: Date.now() })
+          // 注:spec-agent / dev-agent / test-agent 的 success 状态由后端 emitPhaseEvent
+          //     真实推送(apply done / finver done)。这里不再写死,以免覆盖真实状态。
           break
         case 'task/failed':
           updateTask(event.data.id, { status: 'failed', rejectionReason: event.data.error })
@@ -344,10 +344,8 @@ export function useEventStream() {
           // ★ decision 阶段:把每个 intent 的去向作为 ModuleTask 写入
           if (data.stage === 'decision') {
             const chunks = (data.chunks ?? []) as Array<{ chunkId: string; timestamp: number }>
-            if (chunks.length === 0 && !data.sourceChunkId) break
-            const firstChunk = chunks[0]
-            // 用 sourceChunkId 或第一 chunk 找 judgeId
-            const anchorChunkId = data.sourceChunkId ?? firstChunk.chunkId
+            // 用 sourceChunkId 或第一 chunk 找 judgeId(优先 sourceChunkId,因为它是这个 intent 归属的 chunk)
+            const anchorChunkId = data.sourceChunkId ?? chunks[0]?.chunkId
             if (!anchorChunkId) break
             const judgeId = `judge-${anchorChunkId}`
 
@@ -380,10 +378,11 @@ export function useEventStream() {
             }
 
             // ★ intent 智能体完成 → 改 working → success
+            // 用 anchorChunkId 而不是 firstChunk.chunkId,避免 firstChunk undefined 抛错
             recordAgentRun(
               'intent',
               judgeId,
-              firstChunk.chunkId,
+              anchorChunkId,
               'success',
               data.intentCount
                 ? `提取 ${data.intentCount as unknown as string} 个意图`
@@ -436,7 +435,8 @@ export function useEventStream() {
         // ★ 智能体工作状态(AgentStatusRow 卡片)
         case 'agent/status': {
           const d = event.data
-          setAgentStatus(d.agent, {
+          // store.agents 现在用 kebab-case key(跟后端 AgentType 对齐),无需再转换
+          setAgentStatus(d.agent as AgentType, {
             agent: d.agent,
             state: d.state,
             message: d.message,
@@ -460,14 +460,19 @@ export function useEventStream() {
         }
 
         // ★ 版本号 bump(每次代码改动触发)
-        case 'version/bump':
+        // 带 projectPath → per-project 版本号(只更新项目版本)
+        // 不带 → 全局版本号(更新 currentVersion + 触发 iframe reload)
+        case 'version/bump': {
+          const isPerProject = Boolean((event.data as { projectPath?: string }).projectPath)
           applyVersionBump({
             version: event.data.version,
             files: event.data.files ?? [],
             taskId: event.data.taskId,
             timestamp: event.data.timestamp ?? Date.now(),
+            projectPath: isPerProject ? (event.data as { projectPath?: string }).projectPath : undefined,
           })
           break
+        }
       }
     })
 

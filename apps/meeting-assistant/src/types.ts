@@ -233,6 +233,8 @@ export interface VersionBump {
   files: string[]
   taskId?: string
   timestamp: number
+  /** per-project 版本号有(项目路径),全局版本号无 */
+  projectPath?: string
 }
 
 /**
